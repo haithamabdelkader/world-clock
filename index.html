@@ -1,5 +1,611 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Time Zone Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    :root {
+      --bg: #06080d;
+      --surface: #0b0e15;
+      --card: #10131c;
+      --card-hover: #161a26;
+      --border: #1a1f30;
+      --border-light: #242b40;
+      --text: #dfe2ed;
+      --text-sec: #7e86a0;
+      --text-muted: #464e68;
+      --accent: #d4952a;
+      --accent-dim: rgba(212,149,42,0.08);
+      --accent-glow: rgba(212,149,42,0.2);
+      --green: #34d399;
+      --green-dim: rgba(52,211,153,0.1);
+      --gray-badge: #4b5568;
+      --gray-dim: rgba(75,85,104,0.12);
+      --sun: #f0b840;
+      --moon: #818cf8;
+      --user-row-bg: rgba(212,149,42,0.04);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .bg-effects {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 80% 50% at 15% 0%, rgba(212,149,42,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 85% 100%, rgba(130,140,180,0.03) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 50% at 50% 50%, rgba(212,149,42,0.015) 0%, transparent 70%);
+    }
+    .main-wrap { position: relative; z-index: 1; }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green), 0 0 12px rgba(52,211,153,0.3);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .hero-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 36px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+    }
+    .hero-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(2.8rem, 6vw, 4.5rem);
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--text);
+      line-height: 1;
+    }
+    .hero-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .hero-value {
+      font-size: 0.95rem;
+      color: var(--text-sec);
+      font-weight: 500;
+    }
+    .hero-utc-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text-sec);
+    }
+    .search-wrapper { position: relative; }
+    .search-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--text-muted); font-size: 0.85rem;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px 10px 40px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .toggle-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .toggle-switch {
+      position: relative; width: 40px; height: 22px;
+      background: var(--border);
+      border-radius: 11px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px;
+      background: var(--text-sec);
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-switch input:checked ~ .toggle-slider {
+      transform: translateX(18px);
+      background: var(--accent);
+    }
+    .table-container {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .table-scroll { overflow-x: auto; }
+    .zone-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 780px;
+    }
+    .zone-table thead th {
+      background: var(--surface);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      position: sticky; top: 0; z-index: 2;
+    }
+    .zone-table tbody tr { transition: background 0.15s; }
+    .zone-table tbody tr:hover { background: var(--card-hover); }
+    .zone-table tbody td {
+      padding: 11px 16px;
+      border-bottom: 1px solid rgba(26,31,48,0.6);
+      font-size: 0.88rem;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    .zone-table tbody tr:last-child td { border-bottom: none; }
+    .region-row td {
+      background: var(--surface);
+      padding: 8px 16px !important;
+      font-size: 0.72rem !important;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border) !important;
+    }
+    .user-row {
+      background: var(--user-row-bg) !important;
+      border-left: 3px solid var(--accent);
+    }
+    .user-row:hover { background: rgba(212,149,42,0.08) !important; }
+    .user-badge {
+      display: inline-block;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .cell-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-sec);
+    }
+    .cell-city { font-weight: 500; }
+    .cell-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+    .cell-date { color: var(--text-sec); font-size: 0.82rem; }
+    .cell-offset {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--text-sec);
+    }
+    .diff-positive { color: var(--green); }
+    .diff-negative { color: #f07070; }
+    .diff-same { color: var(--text-muted); }
+    .dn-icon { margin-right: 8px; font-size: 0.8rem; }
+    .dn-day { color: var(--sun); }
+    .dn-night { color: var(--moon); }
+    .dst-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .dst-on {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(52,211,153,0.2);
+    }
+    .dst-off {
+      background: var(--gray-dim);
+      color: var(--gray-badge);
+      border: 1px solid rgba(75,85,104,0.15);
+    }
+    .dst-na {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px dashed var(--border-light);
+    }
+    .no-results {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text-muted);
+    }
+    .no-results i { font-size: 2rem; margin-bottom: 12px; display: block; }
+    .zone-table tbody tr {
+      animation: row-in 0.35s ease-out both;
+    }
+    @keyframes row-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .table-scroll::-webkit-scrollbar { height: 6px; }
+    .table-scroll::-webkit-scrollbar-track { background: var(--surface); }
+    .table-scroll::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+    .stat-divider { width: 1px; background: var(--border); align-self: stretch; }
+    @media (max-width: 640px) {
+      .hero-card { padding: 20px; }
+      .hero-time { font-size: 2.2rem; }
+      .hero-utc-time { font-size: 1.1rem; }
+      .hero-stats { flex-direction: column; gap: 12px !important; }
+      .stat-divider { width: 100%; height: 1px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .live-dot { animation: none; }
+      .zone-table tbody tr { animation: none; }
+    }
+  </style>
+</head>
 <body>
-<h1>It works!</h1>
+  <div class="bg-effects"></div>
+  <div class="main-wrap max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <header class="mb-8">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="live-dot"></div>
+        <span style="font-size:0.68rem;text-transform:uppercase;letter-spacing:2.5px;color:var(--text-muted);font-weight:600;">Live</span>
+      </div>
+      <h1 style="font-size:clamp(2rem,4vw,3rem);font-weight:700;line-height:1.15;letter-spacing:-0.5px;">
+        World Clock <span style="color:var(--accent);">Dashboard</span>
+      </h1>
+      <p style="color:var(--text-sec);margin-top:6px;font-size:0.95rem;">
+        59 time zones tracked in real-time with automatic DST status detection
+      </p>
+    </header>
+    <section class="hero-card mb-8" id="hero" aria-label="Your local time"></section>
+    <section class="mb-5">
+      <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div class="search-wrapper flex-1 max-w-md">
+          <i class="fas fa-magnifying-glass search-icon"></i>
+          <input type="text" id="search" placeholder="Search city or code..." class="search-input" aria-label="Search time zones">
+        </div>
+        <div class="flex items-center gap-5">
+          <div class="flex items-center gap-2" style="font-size:0.78rem;color:var(--text-muted);">
+            <span style="width:10px;height:10px;border-radius:3px;background:var(--sun);display:inline-block;"></span> Day
+            <span style="width:10px;height:10px;border-radius:3px;background:var(--moon);display:inline-block;margin-left:8px;"></span> Night
+          </div>
+          <label class="toggle-label" aria-label="Toggle 24-hour format">
+            <span style="font-size:0.82rem;color:var(--text-sec);">24h</span>
+            <div class="toggle-switch">
+              <input type="checkbox" id="format24" checked>
+              <span class="toggle-slider"></span>
+            </div>
+          </label>
+        </div>
+      </div>
+    </section>
+    <section class="table-container" aria-label="World time zones table">
+      <div class="table-scroll">
+        <table class="zone-table" role="table">
+          <thead>
+            <tr>
+              <th style="width:60px;">Code</th>
+              <th>City / Zone</th>
+              <th>Current Time</th>
+              <th>Date</th>
+              <th>Offset</th>
+              <th>From You</th>
+              <th style="width:90px;">DST</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+    <footer class="mt-10 pb-8 text-center" style="color:var(--text-muted);font-size:0.75rem;">
+      <p>DST rules: EU uses last Sunday March/October at 01:00 UTC. US/Canada/Mexico use 2nd Sunday March / 1st Sunday November at 02:00 local. Israel uses Friday before last Sunday March to last Sunday October at 02:00 local. Chile uses 1st Saturday September to 1st Saturday April at 00:00 local. Australia/NZ marked as not handled per watch data.</p>
+    </footer>
+  </div>
+  <script>
+    var zones = [
+      {code:"UTC",city:"Coordinated Universal Time",offStd:0,offDst:0,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Reference",iana:["UTC"]},
+      {code:"PPG",city:"Pago Pago",offStd:-11,offDst:-11,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Pacific",iana:["Pacific/Pago_Pago"]},
+      {code:"HNL",city:"Honolulu",offStd:-10,offDst:-10,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Pacific",iana:["Pacific/Honolulu"]},
+      {code:"RAI",city:"Praia",offStd:-1,offDst:-1,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Africa",iana:["Atlantic/Cape_Verde"]},
+      {code:"FEN",city:"Fernando de Noronha",offStd:-2,offDst:-2,dstOn:null,dstOff:null,rule:null,noDST:true,region:"South America",iana:["America/Noronha"]},
+      {code:"RIO",city:"Rio de Janeiro",offStd:-3,offDst:-3,dstOn:null,dstOff:null,rule:null,noDST:true,region:"South America",iana:["America/Sao_Paulo"]},
+      {code:"SCL",city:"Santiago",offStd:-4,offDst:-3,dstOn:"1st Sat Sep",dstOff:"1st Sat Apr",rule:"cl",noDST:false,region:"South America",iana:["America/Santiago"]},
+      {code:"LAX",city:"Los Angelos",offStd:-8,offDst:-7,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Los_Angeles"]},
+      {code:"YVR",city:"Vancouver",offStd:-8,offDst:-7,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Vancouver"]},
+      {code:"ANC",city:"Anchorage",offStd:-9,offDst:-8,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Anchorage"]},
+      {code:"DEN",city:"Denver",offStd:-7,offDst:-6,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Denver"]},
+      {code:"YEA",city:"Edmonton",offStd:-7,offDst:-6,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Edmonton"]},
+      {code:"CHI",city:"Chicago",offStd:-6,offDst:-5,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Chicago"]},
+      {code:"MEX",city:"Mexico City",offStd:-6,offDst:-5,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Mexico_City"]},
+      {code:"YHZ",city:"Halifax",offStd:-4,offDst:-3,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Halifax","America/Moncton"]},
+      {code:"YTO",city:"Toronto",offStd:-5,offDst:-4,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/Toronto"]},
+      {code:"NYC",city:"New York",offStd:-5,offDst:-4,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/New_York"]},
+      {code:"MIA",city:"Miami",offStd:-5,offDst:-4,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/New_York"]},
+      {code:"YYT",city:"St. Johns",offStd:-3.5,offDst:-2.5,dstOn:"2nd Sun Mar",dstOff:"1st Sun Nov",rule:"us",noDST:false,region:"North America",iana:["America/St_Johns"]},
+      {code:"LON",city:"London",offStd:0,offDst:1,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/London"]},
+      {code:"LIS",city:"Lisbon",offStd:0,offDst:1,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Lisbon"]},
+      {code:"MAD",city:"Madrid",offStd:1,offDst:2,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Madrid"]},
+      {code:"PAR",city:"Paris",offStd:1,offDst:2,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Paris"]},
+      {code:"BER",city:"Berlin",offStd:1,offDst:2,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Berlin"]},
+      {code:"ROM",city:"Rome",offStd:1,offDst:2,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Rome"]},
+      {code:"STO",city:"Stockholm",offStd:1,offDst:2,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Stockholm"]},
+      {code:"VIE",city:"Vienna",offStd:1,offDst:2,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Western Europe",iana:["Europe/Vienna"]},
+      {code:"ATH",city:"Athens",offStd:2,offDst:3,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Eastern Europe",iana:["Europe/Athens"]},
+      {code:"CAI",city:"Cairo",offStd:2,offDst:3,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Eastern Europe",iana:["Africa/Cairo"]},
+      {code:"HLC",city:"Helsinki",offStd:2,offDst:3,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Eastern Europe",iana:["Europe/Helsinki"]},
+      {code:"IST",city:"Istanbul",offStd:2,offDst:3,dstOn:"Last Sun Mar",dstOff:"Last Sun Oct",rule:"eu",noDST:false,region:"Eastern Europe",iana:["Europe/Istanbul"]},
+      {code:"JRS",city:"Jerusalem",offStd:2,offDst:3,dstOn:"Fri before last Sun Mar",dstOff:"Last Sun Oct",rule:"il",noDST:false,region:"Eastern Europe",iana:["Asia/Jerusalem"]},
+      {code:"JED",city:"Jeddah",offStd:3,offDst:3,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Middle East & Caucasus",iana:["Asia/Riyadh"]},
+      {code:"MOW",city:"Moscow",offStd:3,offDst:3,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Middle East & Caucasus",iana:["Europe/Moscow"]},
+      {code:"TBL",city:"Tbilisi",offStd:3,offDst:3,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Middle East & Caucasus",iana:["Asia/Tbilisi"]},
+      {code:"THR",city:"Tehran",offStd:3.5,offDst:3.5,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Middle East & Caucasus",iana:["Asia/Tehran"]},
+      {code:"DXB",city:"Dubai",offStd:4,offDst:4,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Middle East & Caucasus",iana:["Asia/Dubai"]},
+      {code:"KBL",city:"Kabul",offStd:4.5,offDst:4.5,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Middle East & Caucasus",iana:["Asia/Kabul"]},
+      {code:"KHI",city:"Karachi",offStd:5,offDst:5,dstOn:null,dstOff:null,rule:null,noDST:true,region:"South Asia",iana:["Asia/Karachi"]},
+      {code:"DEL",city:"Delhi",offStd:5.5,offDst:5.5,dstOn:null,dstOff:null,rule:null,noDST:true,region:"South Asia",iana:["Asia/Kolkata"]},
+      {code:"KTM",city:"Kathmandu",offStd:5.75,offDst:5.75,dstOn:null,dstOff:null,rule:null,noDST:true,region:"South Asia",iana:["Asia/Kathmandu"]},
+      {code:"DAC",city:"Dhaka",offStd:6,offDst:6,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Dhaka"]},
+      {code:"RGN",city:"Yangon",offStd:6.5,offDst:6.5,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Yangon"]},
+      {code:"BKK",city:"Bangkok",offStd:7,offDst:7,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Bangkok"]},
+      {code:"HKG",city:"Hong Kong",offStd:8,offDst:8,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Hong_Kong"]},
+      {code:"SIN",city:"Singapore",offStd:8,offDst:8,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Singapore"]},
+      {code:"KUL",city:"Kuala Lumpur",offStd:8,offDst:8,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Kuala_Lumpur"]},
+      {code:"BJS",city:"Beijing",offStd:8,offDst:8,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Shanghai"]},
+      {code:"PER",city:"Perth",offStd:8,offDst:8,dstOn:null,dstOff:null,rule:null,noDST:true,watchNoDST:true,region:"Southeast Asia",iana:["Australia/Perth"]},
+      {code:"TPE",city:"Taipei",offStd:8,offDst:8,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Southeast Asia",iana:["Asia/Taipei"]},
+      {code:"TYO",city:"Tokyo",offStd:9,offDst:9,dstOn:null,dstOff:null,rule:null,noDST:true,region:"East Asia",iana:["Asia/Tokyo"]},
+      {code:"SEL",city:"Seoul",offStd:9,offDst:9,dstOn:null,dstOff:null,rule:null,noDST:true,region:"East Asia",iana:["Asia/Seoul"]},
+      {code:"YNT",city:"Yakutsk",offStd:9,offDst:9,dstOn:null,dstOff:null,rule:null,noDST:true,region:"East Asia",iana:["Asia/Yakutsk"]},
+      {code:"ADL",city:"Adelaide",offStd:9.5,offDst:9.5,dstOn:null,dstOff:null,rule:null,noDST:true,watchNoDST:true,region:"Oceania",iana:["Australia/Adelaide"]},
+      {code:"GUM",city:"Guam",offStd:10,offDst:10,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Oceania",iana:["Pacific/Guam"]},
+      {code:"SYD",city:"Sydney",offStd:10,offDst:10,dstOn:null,dstOff:null,rule:null,noDST:true,watchNoDST:true,region:"Oceania",iana:["Australia/Sydney"]},
+      {code:"NOU",city:"Noumea",offStd:11,offDst:11,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Oceania",iana:["Pacific/Noumea"]},
+      {code:"WLG",city:"Wellington",offStd:12,offDst:12,dstOn:null,dstOff:null,rule:null,noDST:true,watchNoDST:true,region:"Oceania",iana:["Pacific/Auckland"]},
+      {code:"KCH",city:"Kiritimati",offStd:14,offDst:14,dstOn:null,dstOff:null,rule:null,noDST:true,region:"Oceania",iana:["Pacific/Kiritimati"]}
+    ];
+
+    function getLastSunday(year, month) {
+      var d = new Date(Date.UTC(year, month + 1, 0));
+      var dow = d.getUTCDay();
+      return new Date(Date.UTC(year, month, d.getUTCDate() - dow));
+    }
+
+    function getNthSunday(year, month, n) {
+      var d = new Date(Date.UTC(year, month, 1));
+      var fd = d.getUTCDay();
+      var fs = fd === 0 ? 1 : (8 - fd);
+      return new Date(Date.UTC(year, month, fs + (n - 1) * 7));
+    }
+
+    function getNthSaturday(year, month, n) {
+      var d = new Date(Date.UTC(year, month, 1));
+      var fd = d.getUTCDay();
+      var fs = fd === 6 ? 1 : (7 - fd + 1);
+      return new Date(Date.UTC(year, month, fs + (n - 1) * 7));
+    }
+
+    function isDSTActive(zone) {
+      if (zone.noDST) return false;
+      var now = new Date();
+      var ms = now.getTime();
+      var y;
+
+      if (zone.rule === "eu") {
+        y = now.getUTCFullYear();
+        var on = getLastSunday(y, 2); on.setUTCHours(1,0,0,0);
+        var off = getLastSunday(y, 9); off.setUTCHours(1,0,0,0);
+        return ms >= on.getTime() && ms < off.getTime();
+      }
+
+      if (zone.rule === "us") {
+        var localMs = ms + zone.offStd * 3600000;
+        var localD = new Date(localMs);
+        y = localD.getUTCFullYear();
+        var onD = getNthSunday(y, 2, 2);
+        var offD = getNthSunday(y, 10, 1);
+        var onUTC = onD.getTime() + (2 - zone.offStd) * 3600000;
+        var offUTC = offD.getTime() + (2 - zone.offDst) * 3600000;
+        return ms >= onUTC && ms < offUTC;
+      }
+
+      if (zone.rule === "il") {
+        y = now.getUTCFullYear();
+        var lsm = getLastSunday(y, 2);
+        var fri = new Date(lsm.getTime()); fri.setUTCDate(fri.getUTCDate() - 1);
+        var onUTC = fri.getTime() + (2 - zone.offStd) * 3600000;
+        var lso = getLastSunday(y, 9); lso.setUTCHours(2,0,0,0);
+        var offUTC = lso.getTime() + (2 - zone.offDst) * 3600000;
+        return ms >= onUTC && ms < offUTC;
+      }
+
+      if (zone.rule === "cl") {
+        y = now.getUTCFullYear();
+        var onD = getNthSaturday(y, 8);
+        var onUTC = onD.getTime() - zone.offStd * 3600000;
+        var offD = getNthSaturday(y, 3);
+        var offUTC = offD.getTime() - zone.offDst * 3600000;
+        var m = now.getUTCMonth();
+        if (m >= 8) {
+          var no = getNthSaturday(y+1, 3);
+          var noUTC = no.getTime() - zone.offDst * 3600000;
+          return ms >= onUTC && ms < noUTC;
+        } else if (m <= 3) {
+          var po = getNthSaturday(y-1, 8);
+          var poUTC = po.getTime() - zone.offStd * 3600000;
+          return ms >= poUTC && ms < offUTC;
+        }
+        return false;
+      }
+
+      return false;
+    }
+
+    function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+    function formatTime(d, use24, useLocal) {
+      var h = useLocal ? d.getHours() : d.getUTCHours();
+      var m = useLocal ? pad(d.getMinutes()) : pad(d.getUTCMinutes());
+      if (use24) return {time: pad(h) + ":" + m, ampm: ""};
+      var ap = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return {time: h + ":" + m, ampm: ap};
+    }
+
+    function formatDate(d, useLocal) {
+      var dy = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      var mn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      if (useLocal) return dy[d.getDay()] + ", " + d.getDate() + " " + mn[d.getMonth()] + " " + d.getFullYear();
+      return dy[d.getUTCDay()] + ", " + d.getUTCDate() + " " + mn[d.getUTCMonth()] + " " + d.getUTCFullYear();
+    }
+
+    function fmtOff(h) {
+      if (h === 0) return "UTC\u00B10";
+      var s = h > 0 ? "+" : "-";
+      var a = Math.abs(h);
+      var hr = Math.floor(a);
+      var mi = Math.round((a - hr) * 60);
+      return mi === 0 ? "UTC" + s + hr : "UTC" + s + hr + ":" + pad(mi);
+    }
+
+    function fmtDiff(d) {
+      if (Math.abs(d) < 0.01) return {text: "Same", cls: "diff-same"};
+      var s = d > 0 ? "+" : "-";
+      var a = Math.abs(d);
+      var hr = Math.floor(a);
+      var mi = Math.round((a - hr) * 60);
+      var t = "";
+      if (hr > 0) t += hr + "h";
+      if (mi > 0) t += (hr > 0 ? " " : "") + mi + "m";
+      return {text: s === "+" ? "+" + t : t, cls: d > 0 ? "diff-positive" : "diff-negative"};
+    }
+
+    function isDay(d) { var h = d.getUTCHours(); return h >= 6 && h < 18; }
+
+    function getZoneTime(z) {
+      var now = new Date();
+      var dst = isDSTActive(z);
+      var off = dst ? z.offDst : z.offStd;
+      return {date: new Date(now.getTime() + off * 3600000), dst: dst, offset: off};
+    }
+
+    var userIANA = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    var userOff = -new Date().getTimezoneOffset() / 60;
+    var userCode = null;
+    for (var i = 0; i < zones.length; i++) {
+      if (zones[i].iana.indexOf(userIANA) !== -1) { userCode = zones[i].code; break; }
+    }
+
+    var heroEl = document.getElementById("hero");
+    var tbodyEl = document.getElementById("tbody");
+    var searchEl = document.getElementById("search");
+    var fmt24El = document.getElementById("format24");
+
+    function renderHero() {
+      var now = new Date();
+      var u24 = fmt24El.checked;
+      var ft = formatTime(now, u24, true);
+      var ds = formatDate(now, true);
+      var uh = pad(now.getUTCHours());
+      var um = pad(now.getUTCMinutes());
+      var uz = null;
+      for (var i = 0; i < zones.length; i++) { if (zones[i].code === userCode) { uz = zones[i]; break; } }
+      var ml = uz ? '<span class="user-badge">Matched: ' + uz.code + '</span>' : '<span style="font-size:0.7rem;color:var(--text-muted);font-style:italic;">Not in list</span>';
+      var jan = new Date(now.getFullYear(), 0, 1);
+      var jul = new Date(now.getFullYear(), 6, 1);
+      var so = Math.min(-jan.getTimezoneOffset(), -jul.getTimezoneOffset());
+      var do2 = Math.max(-jan.getTimezoneOffset(), -jul.getTimezoneOffset());
+      var co = -now.getTimezoneOffset();
+      var bd = so !== do2 && co !== so;
+      var ah = ft.ampm ? '<span style="font-size:1.2rem;color:var(--text-sec);margin-left:8px;font-weight:400;">' + ft.ampm + '</span>' : '';
+      var dh = bd ? '<span class="dst-badge dst-on" style="font-size:0.65rem;">DST Active</span>' : '';
+      heroEl.innerHTML = '<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6"><div class="flex-1"><div class="hero-label mb-2">Your Local Time</div><div class="hero-time">' + ft.time + ah + '</div><div class="flex items-center gap-3 mt-3 flex-wrap"><span style="color:var(--text-sec);font-size:0.95rem;">' + ds + '</span><span style="color:var(--border-light);">|</span><span style="color:var(--text-sec);font-size:0.88rem;">' + fmtOff(userOff) + '</span>' + dh + '</div></div><div class="hero-stats flex items-center gap-6 lg:gap-8"><div><div class="hero-label mb-1">Timezone</div><div class="hero-value">' + userIANA.replace(/_/g, " ") + ' ' + ml + '</div></div><div class="stat-divider hidden sm:block"></div><div><div class="hero-label mb-1">UTC Reference</div><div class="hero-utc-time">' + uh + ":" + um + '</div></div><div class="stat-divider hidden sm:block"></div><div><div class="hero-label mb-1">Zones Tracked</div><div class="hero-value" style="font-family:JetBrains Mono,monospace;font-size:1.3rem;color:var(--accent);">59</div></div></div></div>';
+    }
+
+    function dstBadge(z, dst) {
+      if (z.noDST) {
+        return z.watchNoDST ? '<span class="dst-badge dst-na"><i class="fas fa-minus" style="font-size:0.55rem;"></i> N/A</span>' : '<span class="dst-badge dst-na">None</span>';
+      }
+      return dst ? '<span class="dst-badge dst-on"><i class="fas fa-circle" style="font-size:0.35rem;"></i> ON</span>' : '<span class="dst-badge dst-off">OFF</span>';
+    }
+
+    function renderTable() {
+      var u24 = fmt24El.checked;
+      var q = searchEl.value.trim().toLowerCase();
+      var rm = {}, ro = [];
+      for (var i = 0; i < zones.length; i++) {
+        var r = zones[i].region;
+        if (!rm[r]) { rm[r] = []; ro.push(r); }
+        rm[r].push(zones[i]);
+      }
+      var html = "", ri = 0, found = false;
+      for (var a = 0; a < ro.length; a++) {
+        var reg = ro[a], rz = rm[reg], fl = [];
+        if (q) { for (var b = 0; b < rz.length; b++) { var z = rz[b]; if (z.code.toLowerCase().indexOf(q) !== -1 || z.city.toLowerCase().indexOf(q) !== -1) fl.push(z); } }
+        else { fl = rz; }
+        if (!fl.length) continue;
+        found = true;
+        html += '<tr class="region-row"><td colspan="7">' + reg + '</td></tr>';
+        for (var c = 0; c < fl.length; c++) {
+          var z = fl[c], zt = getZoneTime(z), ld = zt.date, dst = zt.dst, off = zt.offset;
+          var ft = formatTime(ld, u24, false), ds = formatDate(ld, false), os = fmtOff(off), df = fmtDiff(off - userOff);
+          var iu = z.code === userCode, dy = isDay(ld);
+          var dn = dy ? '<i class="fas fa-sun dn-icon dn-day"></i>' : '<i class="fas fa-moon dn-icon dn-night"></i>';
+          var ap = ft.ampm ? '<span style="color:var(--text-muted);font-size:0.75em;margin-left:4px;">' + ft.ampm + '</span>' : '';
+          var ub = iu ? '<span class="user-badge">You</span>' : '';
+          var uc = iu ? ' user-row' : '';
+          html += '<tr class="' + uc + '" style="animation-delay:' + (ri * 0.02) + 's;"><td class="cell-code">' + z.code + ub + '</td><td class="cell-city">' + z.city + '</td><td class="cell-time">' + dn + ft.time + ap + '</td><td class="cell-date">' + ds + '</td><td class="cell-offset">' + os + '</td><td class="' + df.cls + '" style="font-family:JetBrains Mono,monospace;font-size:0.82rem;font-weight:500;">' + df.text + '</td><td>' + dstBadge(z, dst) + '</td></tr>';
+          ri++;
+        }
+      }
+      if (!found) html = '<tr><td colspan="7" class="no-results"><i class="fas fa-globe"></i><div style="font-size:0.95rem;font-weight:500;margin-bottom:4px;">No time zones found</div><div style="font-size:0.82rem;">Try a different search term</div></td></tr>';
+      tbodyEl.innerHTML = html;
+    }
+
+    var lastMin = -1;
+    function tick() {
+      var n = new Date(), m = n.getHours() * 60 + n.getMinutes();
+      if (m !== lastMin) { lastMin = m; renderHero(); renderTable(); }
+      requestAnimationFrame(tick);
+    }
+    searchEl.addEventListener("input", function() { lastMin = -1; });
+    fmt24El.addEventListener("change", function() { lastMin = -1; });
+    tick();
+  </script>
 </body>
 </html>
